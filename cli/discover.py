@@ -22,7 +22,7 @@ def main(repo: str, app_url: str, entry_point: str, output: str):
     Phase 1: Discover user flows from codebase and UI.
     
     1. Static analysis: Extract routes, components, APIs
-    2. Dynamic crawl: Use Chrome DevTools MCP to map UI interactions
+    2. Dynamic crawl: Use Playwright to map UI interactions
     3. AI synthesis: Generate user journey flows
     4. Output: spec.json + generated test stubs
     """
@@ -36,9 +36,9 @@ def main(repo: str, app_url: str, entry_point: str, output: str):
     click.echo(f"  External services: {', '.join(analysis.external_services) or 'None'}")
     
     click.echo(f"\n🕷️  Crawling UI at {app_url}")
-    # TODO: Implement async flow mapping
-    # flows = asyncio.run(map_ui_flows(app_url, asdict(analysis)))
-    flows = []  # For now, empty
+    # Dynamic flow discovery via Playwright UI crawler
+    from dataclasses import asdict
+    flows = asyncio.run(map_ui_flows(app_url, asdict(analysis)))
     
     click.echo(f"  Discovered flows: {len(flows)}")
     
