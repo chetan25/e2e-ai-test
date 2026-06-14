@@ -1,0 +1,81 @@
+name: E2E AI Test
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    branches: [main]
+
+jobs:
+  e2e-ai-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install -e .
+          npm ci
+      
+      - name: Start app
+        run: npm run dev &
+        env:
+          NODE_ENV: test
+      
+      - name: Wait for app ready
+        run: npx wait-on http://localhost:3000 --timeout 60000
+      
+      - name: Analyze PR impact
+        if: github.event_name == 'pull_request'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python github-app/pr_analyzer.py \
+            --repo . \
+            --base ${{ github.base_ref }} \
+            --pr ${{ github.head_ref }} \
+            --spec spec.json
+      
+      - name: Generate/update tests
+        if: github.event_name == 'pull_request'
+        run: |
+          python github-app/test_updater.py \
+            --impact impact.json \
+            --spec spec.json \
+            --output tests/e2e/
+      
+      - name: Run Playwright tests
+        run: npx playwright test
+      
+      - name: Comment PR results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('playwright-report/index.html', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ E2E tests passed\n\nTests generated and run automatically.'
+            });
+      
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: playwright-report/
